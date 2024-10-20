@@ -1,0 +1,104 @@
+import bpy
+import csv
+
+POINTS_FILE_PATH = r"D:\praca_wlasna\mocapSolutions\anim\points\animationPoints.txt"
+FRAME_INDEX = 102
+FRAME_NUMBER = 324
+
+POINTS_NAMES_MEDIAPIPE = ["nose", "leftEye(inner)", "leftEye",
+"leftEye(outer)", "rightEye(inner)", "rightEye", "rightEye(outer)",
+"leftEar", "rightEar", "mouth(left)", "mouth(right)",
+"leftShoulder", "rightShoulder", "leftElbow", "rightElbow",
+"leftWrist", "rightWrist", "leftPinky", "rightPinky", "leftIndex",
+"rightIndex", "leftThumb", "rightThumb", "leftHip", "rightHip",
+"leftKnee", "rightKnee", "leftAnkle", "rightAnkle", "leftHeel",
+"rightHeel", "leftFootIndex", "rightFootIndex"]
+BONE_NAMES = ["rootBone","mainBone","nose","arm.R","foreArm.R","thigh.R","leg.R","arm.L","foreArm.L","thigh.L","leg.L"]
+# Bones used in armature
+BONE_INDEXES = [(12,14),(14,16),(24,26),(26,28),(11,13),(13,15),(23,25),(25,27)]
+
+## Class used to create a mediapipe skeleton
+class MocapFigure:
+    def __init__(self, pointsFile, frameNumber):
+    #pointsFile - path to a txt file with points coordinates
+        self.pointsFile = pointsFile
+        self.frameNumber = frameNumber
+    # Assign points from a row
+    # Head an tail are different points, it is not so simple
+    def createBones(self, row, armature):
+        #points = row.split(",")
+        ## set main bone
+        bone_new = armature.data.edit_bones.new(BONE_NAMES[1])
+        bone_new.head[0] = float(row[0 * 3]) * 0.001
+        bone_new.head[1] = float(row[0 * 3 + 1]) * 0.001
+        bone_new.head[2] = (float(row[0 * 3 + 2]) + 168) * 0.001
+        bone_new.tail[0] = float(row[0 * 3]) * 0.001
+        bone_new.tail[1] = float(row[0 * 3 + 1]) * 0.001
+        bone_new.tail[2] = (float(row[0 * 3 + 2]) + 158) * 0.001
+        ## set nose bone
+        bone_new = armature.data.edit_bones.new(BONE_NAMES[2])
+        bone_new.head[0] = float(row[0 * 3]) * 0.001
+        bone_new.head[1] = float(row[0 * 3 + 1]) * 0.001
+        bone_new.head[2] = float(row[0 * 3 + 2]) * 0.001
+        bone_new.tail[0] = float(row[0 * 3]) * 0.001
+        bone_new.tail[1] = float(row[0 * 3 + 1]) * 0.001
+        bone_new.tail[2] = (float(row[0 * 3 + 2]) - 10) * 0.001
+        
+        for index in range(3, len(BONE_NAMES)):
+            # bone name
+            #bpy.ops.object.mode_set(mode='EDIT')
+            bone_new = armature.data.edit_bones.new(BONE_NAMES[index])
+            bone_new.head[0] = float(row[BONE_INDEXES[index-3][0] * 3]) * 0.001
+            bone_new.head[1] = float(row[BONE_INDEXES[index-3][0] * 3 + 1]) * 0.001
+            bone_new.head[2] = float(row[BONE_INDEXES[index-3][0] * 3 + 2]) * 0.001
+            bone_new.tail[0] = float(row[BONE_INDEXES[index-3][1] * 3 ]) * 0.001
+            bone_new.tail[1] = float(row[BONE_INDEXES[index-3][1] * 3 + 1]) * 0.001
+            bone_new.tail[2] = float(row[BONE_INDEXES[index-3][1] * 3 + 2]) * 0.001
+    # Assign parents in armature
+    # Non linear parenting
+    def assignParents(self, amt):
+        for index in range(len(amt.data.edit_bones) - 1):
+            # Connect 
+            if (index == 0):
+                amt.data.edit_bones[index + 1].parent = amt.data.edit_bones[index]
+            else:
+                amt.data.edit_bones[index + 1].parent = amt.data.edit_bones[index]
+                amt.data.edit_bones[index + 1].use_connect = True
+    # Create skeleton from loaded points
+    def createSceleton(self):
+        with open(self.pointsFile, "r", newline='') as input:
+            csv_file = csv.reader(input, delimiter = ',')
+            for frame_ind, row in zip(range(1, FRAME_NUMBER + 1), csv_file):
+                # Place root bone
+                bpy.ops.object.armature_add(enter_editmode=True, align='WORLD', 
+                location=(0, 0, 0), scale=(1, 1, 1))
+                # make bone length = 0.1 m (before it was too big)
+                amt = bpy.data.objects[0]
+                amt.data.edit_bones[0].tail[2] = -0.1
+                # rename bone
+                amt.data.edit_bones[0].name = BONE_NAMES[0]
+                # Rename armatures
+                amt.name = "Armature" + str(frame_ind)
+                self.createBones(row, amt)
+                #self.assignParents(amt)'
+                bpy.ops.object.mode_set(mode='OBJECT')
+def deleteGarbage():
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    for object in bpy.data.objects:
+        object.hide_viewport = False
+        object.select_set(True)
+        bpy.ops.object.delete(use_global=True)
+def hideSkeletons():
+        for object in bpy.data.objects:
+            object.hide_viewport = True
+        obj = bpy.data.objects["Armature" + str(102)]
+        obj.hide_viewport = False
+if __name__ == "__main__":
+    #delete everything from the last point
+    deleteGarbage()
+    mocap = MocapFigure(POINTS_FILE_PATH, FRAME_NUMBER)
+    mocap.createSceleton()
+    #mocap.assignParents
+    hideSkeletons()
+    
